@@ -1,71 +1,59 @@
-# Online Voting Application - DevOps Project
+# Voting App - DevOps Project
 
-## Project Overview
-This repository contains a simple online voting application deployed on Kubernetes, featuring separate frontend and backend services with monitoring capabilities.
+Aplikasi voting sederhana dengan implementasi DevOps practices.
 
-## Architecture
+## Struktur Proyek
+
 ```
-.
-├── frontend/                 # React-based voting interface
-├── backend/                  # Node.js/Express API service
-├── k8s/                     # Kubernetes manifests
-│   ├── frontend/           # Frontend deployment configs
-│   ├── backend/            # Backend deployment configs
-│   ├── monitoring/         # Prometheus & Grafana configs
-│   └── ingress/            # Ingress configurations
-├── jenkins/                # CI/CD pipeline configurations
-└── monitoring/             # Grafana dashboards & Prometheus rules
+voting-app/
+├── frontend/           # React frontend
+├── backend/           # Node.js backend
+├── docker/            # Docker configuration
+├── kubernetes/        # Basic k8s configs
+├── jenkins/           # Basic Jenkins pipeline
+├── docker-compose.yml # Development environment
+└── README.md
 ```
 
-## Prerequisites
-- Kubernetes cluster
-- Jenkins
-- Docker
-- kubectl
-- Helm (for monitoring stack)
+## Setup Development Environment
 
-## Components
-1. Frontend Service
-   - React-based web application
-   - Serves voting interface
-   - Communicates with backend API
+1. Install dependencies:
+   ```bash
+   # Backend
+   cd backend
+   npm install
 
-2. Backend Service
-   - RESTful API service
-   - Handles voting logic
-   - Database integration
+   # Frontend
+   cd frontend
+   npm install
+   ```
 
-3. Monitoring Stack
-   - Prometheus for metrics collection
-   - Grafana for visualization
-   - Metrics tracked:
-     - Request rate
-     - API latency
-     - HTTP status codes (200/500)
+2. Run with Docker Compose:
+   ```bash
+   docker-compose up
+   ```
 
-## Getting Started
-1. Clone this repository
-2. Setup Kubernetes cluster
-3. Deploy monitoring stack
-4. Run CI/CD pipelines
-5. Deploy applications
+## Deployment
 
-## Team Roles
-- Project Lead: Frontend/backend module division, pod architecture
-- Infrastructure Engineer: Kubernetes setup, namespace & ingress configuration
-- CI/CD Engineer: Jenkins pipeline setup for frontend & backend
-- Deployment Engineer: Service & deployment configuration
-- Monitoring Engineer: Grafana dashboard creation
+### Local Kubernetes Deployment
+```bash
+kubectl apply -f kubernetes/
+```
 
-## Monitoring Metrics
-- Request rate per endpoint
-- Backend API latency
-- HTTP status code distribution
-- Pod health status
-- Resource utilization
+### Jenkins Pipeline
+1. Setup Jenkins server
+2. Create new pipeline job
+3. Point to Jenkinsfile in repository
 
-## Contributing
-Please read CONTRIBUTING.md for details on our code of conduct and the process for submitting pull requests.
+## Akses Aplikasi
 
-## License
-This project is licensed under the MIT License - see the LICENSE file for details 
+- Frontend: http://localhost:3000
+- Backend API: http://localhost:8000
+- Jenkins: http://localhost:8080
+
+## Tim
+
+- Infrastructure Engineer: [Nama]
+- CI/CD Engineer: [Nama]
+- Deployment Engineer: [Nama]
+- Monitoring Engineer: [Nama] 
