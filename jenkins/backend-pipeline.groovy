@@ -24,6 +24,7 @@ pipeline {
                     retry(3) {
                         checkout scm
                     }
+                    stash name: 'source', includes: '**/*'
                 }
             }
         }
@@ -36,6 +37,7 @@ pipeline {
                 }
             }
             steps {
+                unstash 'source'
                 dir('backend') {
                     sh '''
                         echo "📦 Installing dependencies..."
@@ -127,14 +129,16 @@ pipeline {
     
     post {
         always {
-            script {
-                echo "--- Post Build Actions ---"
-                sh 'kubectl delete pod test-pod -n voting-app --ignore-not-found=true || true'
-                
-                if (currentBuild.result == 'SUCCESS' || currentBuild.result == null) {
-                    echo '🎉 Pipeline finished.'
-                } else {
-                    echo '❌ Pipeline failed.'
+            withCredentials([file(credentialsId: 'kubeconfig', variable: 'KUBECONFIG')]) {
+                script {
+                    echo "--- Post Build Actions ---"
+                    sh 'kubectl delete pod test-pod -n voting-app --ignore-not-found=true || true'
+                    
+                    if (currentBuild.result == 'SUCCESS' || currentBuild.result == null) {
+                        echo '🎉 Pipeline finished.'
+                    } else {
+                        echo '❌ Pipeline failed.'
+                    }
                 }
             }
         }
