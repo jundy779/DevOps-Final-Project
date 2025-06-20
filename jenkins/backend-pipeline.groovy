@@ -41,7 +41,7 @@ pipeline {
                 dir('backend') {
                     sh '''
                         echo "📦 Installing dependencies..."
-                        npm install
+                        npm install --cache .npm --no-optional
                         echo "🧪 Running tests..."
                         npm test
                         echo "🐳 Building Docker image..."
@@ -132,7 +132,7 @@ pipeline {
             withCredentials([file(credentialsId: 'kubeconfig', variable: 'KUBECONFIG')]) {
                 script {
                     echo "--- Post Build Actions ---"
-                    sh 'kubectl delete pod test-pod -n voting-app --ignore-not-found=true || true'
+                    sh 'kubectl --kubeconfig $KUBECONFIG delete pod test-pod -n voting-app --ignore-not-found=true || true'
                     
                     if (currentBuild.result == 'SUCCESS' || currentBuild.result == null) {
                         echo '🎉 Pipeline finished.'
