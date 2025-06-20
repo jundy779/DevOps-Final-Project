@@ -40,6 +40,8 @@ pipeline {
                 unstash 'source'
                 dir('backend') {
                     sh '''
+                        echo "🔧 Installing Docker CLI..."
+                        apk add --no-cache docker-cli
                         echo "📦 Installing dependencies..."
                         npm install --cache .npm --no-optional
                         echo "🧪 Skipping tests for now to fix deployment..."
