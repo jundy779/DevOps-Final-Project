@@ -89,21 +89,23 @@ pipeline {
                 }
             }
             steps {
-                script {
-                    sh '''
-                        echo "☸️ Deploying to Kubernetes..."
-                        sed -i "s|voting-app-backend:latest|${DOCKER_REGISTRY}/voting-app-backend:${IMAGE_TAG}|g" kubernetes/backend-deployment.yaml
-                        
-                        kubectl apply -f kubernetes/namespace.yaml
-                        kubectl apply -f kubernetes/secret.yaml
-                        kubectl apply -f kubernetes/postgres-deployment.yaml
-                        
-                        kubectl wait --for=condition=ready pod -l app=postgres -n voting-app --timeout=300s
-                        
-                        kubectl apply -f kubernetes/backend-deployment.yaml
-                        
-                        kubectl wait --for=condition=ready pod -l app=backend -n voting-app --timeout=300s
-                    '''
+                withCredentials([file(credentialsId: 'kubeconfig', variable: 'KUBECONFIG')]) {
+                    script {
+                        sh """
+                            echo "☸️ Deploying to Kubernetes..."
+                            sed -i "s|voting-app-backend:latest|${DOCKER_REGISTRY}/voting-app-backend:${IMAGE_TAG}|g" kubernetes/backend-deployment.yaml
+                            
+                            kubectl --kubeconfig \$KUBECONFIG apply -f kubernetes/namespace.yaml
+                            kubectl --kubeconfig \$KUBECONFIG apply -f kubernetes/secret.yaml
+                            kubectl --kubeconfig \$KUBECONFIG apply -f kubernetes/postgres-deployment.yaml
+                            
+                            kubectl --kubeconfig \$KUBECONFIG wait --for=condition=ready pod -l app=postgres -n voting-app --timeout=300s
+                            
+                            kubectl --kubeconfig \$KUBECONFIG apply -f kubernetes/backend-deployment.yaml
+                            
+                            kubectl --kubeconfig \$KUBECONFIG wait --for=condition=ready pod -l app=backend -n voting-app --timeout=300s
+                        """
+                    }
                 }
             }
         }
@@ -115,15 +117,17 @@ pipeline {
                 }
             }
             steps {
-                script {
-                    sh '''
-                        echo "🧪 Running integration tests..."
-                        sleep 30
-                        
-                        BACKEND_IP=$(kubectl get service backend-service -n voting-app -o jsonpath='{.spec.clusterIP}')
-                        kubectl run test-pod --image=curlimages/curl -n voting-app --rm -i --restart=Never -- curl -f http://$BACKEND_IP:8000/health || exit 1
-                        echo "✅ Backend health check passed"
-                    '''
+                withCredentials([file(credentialsId: 'kubeconfig', variable: 'KUBECONFIG')]) {
+                    script {
+                        sh """
+                            echo "🧪 Running integration tests..."
+                            sleep 30
+                            
+                            BACKEND_IP=\$(kubectl --kubeconfig \$KUBECONFIG get service backend-service -n voting-app -o jsonpath='{.spec.clusterIP}')
+                            kubectl --kubeconfig \$KUBECONFIG run test-pod --image=curlimages/curl -n voting-app --rm -i --restart=Never -- curl -f http://\$BACKEND_IP:8000/health || exit 1
+                            echo "✅ Backend health check passed"
+                        """
+                    }
                 }
             }
         }
