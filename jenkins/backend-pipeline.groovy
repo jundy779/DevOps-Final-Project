@@ -43,7 +43,7 @@ pipeline {
                         echo "📦 Installing dependencies..."
                         npm install --cache .npm --no-optional
                         echo "🧪 Running tests..."
-                        npm test
+                        npm test -- --config=jest.config.cjs
                         echo "🐳 Building Docker image..."
                         docker build -t ${DOCKER_REGISTRY}/voting-app-backend:${IMAGE_TAG} .
                         docker tag ${DOCKER_REGISTRY}/voting-app-backend:${IMAGE_TAG} ${DOCKER_REGISTRY}/voting-app-backend:latest
