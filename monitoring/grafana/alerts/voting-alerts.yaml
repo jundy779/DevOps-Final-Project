@@ -1,0 +1,72 @@
+groups:
+  - name: voting-app-alerts
+    rules:
+      # High Error Rate Alert
+      - alert: HighErrorRate
+        expr: rate(http_requests_total{job="voting-backend", status=~"5.."}[5m]) / rate(http_requests_total{job="voting-backend"}[5m]) * 100 > 5
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High error rate detected"
+          description: "Error rate is {{ $value }}% for voting backend"
+
+      # High Response Time Alert
+      - alert: HighResponseTime
+        expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket{job="voting-backend"}[5m])) > 2
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High response time detected"
+          description: "95th percentile response time is {{ $value }}s"
+
+      # Service Down Alert
+      - alert: ServiceDown
+        expr: up{job=~"voting-backend|voting-frontend"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Service is down"
+          description: "{{ $labels.job }} is down"
+
+      # High Memory Usage Alert
+      - alert: HighMemoryUsage
+        expr: (process_resident_memory_bytes{job="voting-backend"} / 1024 / 1024 / 1024) > 1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High memory usage"
+          description: "Memory usage is {{ $value }}GB"
+
+      # High CPU Usage Alert
+      - alert: HighCPUUsage
+        expr: rate(process_cpu_seconds_total{job="voting-backend"}[5m]) * 100 > 80
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High CPU usage"
+          description: "CPU usage is {{ $value }}%"
+
+      # Database Connection Alert
+      - alert: DatabaseConnectionHigh
+        expr: pg_stat_database_numbackends > 50
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High database connections"
+          description: "Database has {{ $value }} active connections"
+
+      # Voting Rate Alert
+      - alert: HighVotingRate
+        expr: rate(votes_total[5m]) * 60 > 100
+        for: 1m
+        labels:
+          severity: info
+        annotations:
+          summary: "High voting activity"
+          description: "Voting rate is {{ $value }} votes per minute" 

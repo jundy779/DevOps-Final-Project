@@ -1,0 +1,170 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": null,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "title": "Request Rate (Requests/Second)",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "rate(http_requests_total{job=\"voting-backend\"}[5m])",
+          "legendFormat": "Backend"
+        },
+        {
+          "expr": "rate(http_requests_total{job=\"voting-frontend\"}[5m])",
+          "legendFormat": "Frontend"
+        }
+      ]
+    },
+    {
+      "title": "Response Time (95th Percentile)",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, rate(http_request_duration_seconds_bucket{job=\"voting-backend\"}[5m])) * 1000",
+          "legendFormat": "95th Percentile"
+        }
+      ]
+    },
+    {
+      "title": "Error Rate (%)",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "rate(http_requests_total{job=\"voting-backend\", status=~\"5..\"}[5m]) / rate(http_requests_total{job=\"voting-backend\"}[5m]) * 100",
+          "legendFormat": "Backend Errors"
+        }
+      ]
+    },
+    {
+      "title": "Memory Usage",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "process_resident_memory_bytes{job=\"voting-backend\"}",
+          "legendFormat": "Backend Memory"
+        },
+        {
+          "expr": "process_resident_memory_bytes{job=\"voting-frontend\"}",
+          "legendFormat": "Frontend Memory"
+        }
+      ]
+    },
+    {
+      "title": "CPU Usage (%)",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "rate(process_cpu_seconds_total{job=\"voting-backend\"}[5m]) * 100",
+          "legendFormat": "Backend CPU"
+        },
+        {
+          "expr": "rate(process_cpu_seconds_total{job=\"voting-frontend\"}[5m]) * 100",
+          "legendFormat": "Frontend CPU"
+        }
+      ]
+    },
+    {
+      "title": "HTTP Status Codes",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "sum by (status) (rate(http_requests_total{job=\"voting-backend\"}[5m]))",
+          "legendFormat": "Status {{status}}"
+        }
+      ]
+    }
+  ],
+  "refresh": "10s",
+  "schemaVersion": 38,
+  "style": "dark",
+  "tags": ["voting-app", "monitoring"],
+  "templating": {
+    "list": [
+      {
+        "current": {
+          "selected": false,
+          "text": "All",
+          "value": "$__all"
+        },
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "definition": "label_values(http_requests_total, job)",
+        "hide": 0,
+        "includeAll": true,
+        "label": "Job",
+        "multi": false,
+        "name": "job",
+        "options": [],
+        "query": {
+          "query": "label_values(http_requests_total, job)",
+          "refId": "StandardVariableQuery"
+        },
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 0,
+        "type": "query"
+      },
+      {
+        "current": {
+          "selected": false,
+          "text": "All",
+          "value": "$__all"
+        },
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "definition": "label_values(http_requests_total{job=~\"$job\"}, status)",
+        "hide": 0,
+        "includeAll": true,
+        "label": "Status",
+        "multi": false,
+        "name": "status",
+        "options": [],
+        "query": {
+          "query": "label_values(http_requests_total{job=~\"$job\"}, status)",
+          "refId": "StandardVariableQuery"
+        },
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 0,
+        "type": "query"
+      }
+    ]
+  },
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "timepicker": {},
+  "timezone": "",
+  "title": "Voting App - Complete Metrics Dashboard",
+  "uid": "voting-metrics",
+  "version": 1,
+  "weekStart": ""
+} 

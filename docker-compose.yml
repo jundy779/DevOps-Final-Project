@@ -6,9 +6,14 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
     ports:
-      - "3000:3000"
+      - "3000:80"
     depends_on:
       - backend
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
   backend:
     build: 
@@ -19,11 +24,20 @@ services:
     environment:
       - NODE_ENV=development
       - DB_HOST=db
+      - DB_USER=voting_user
+      - DB_NAME=voting_db
+      - DB_PASSWORD=voting_pass
+      - DB_PORT=5432
     depends_on:
       - db
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
   db:
-    image: postgres:13
+    image: postgres:15-alpine
     environment:
       - POSTGRES_DB=voting_db
       - POSTGRES_USER=voting_user
@@ -32,6 +46,12 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./backend/src/db/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U voting_user -d voting_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
 volumes:
   postgres_data: 

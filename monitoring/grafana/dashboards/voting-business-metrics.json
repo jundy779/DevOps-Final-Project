@@ -1,0 +1,166 @@
+{
+  "title": "Voting App - Business Metrics",
+  "panels": [
+    {
+      "title": "Total Votes Cast",
+      "type": "stat",
+      "targets": [
+        {
+          "expr": "sum(votes_total)",
+          "legendFormat": "Total Votes"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 100
+              },
+              {
+                "color": "red",
+                "value": 500
+              }
+            ]
+          },
+          "unit": "short"
+        }
+      }
+    },
+    {
+      "title": "Votes per Candidate",
+      "type": "barchart",
+      "targets": [
+        {
+          "expr": "sum by (candidate) (votes_total)",
+          "legendFormat": "{{candidate}}"
+        }
+      ]
+    },
+    {
+      "title": "Voting Rate (Votes per Minute)",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "rate(votes_total[5m]) * 60",
+          "legendFormat": "Votes per Minute"
+        }
+      ]
+    },
+    {
+      "title": "Active Users",
+      "type": "stat",
+      "targets": [
+        {
+          "expr": "count(active_users)",
+          "legendFormat": "Active Users"
+        }
+      ]
+    },
+    {
+      "title": "Voting Session Duration",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, rate(voting_session_duration_seconds_bucket[5m]))",
+          "legendFormat": "95th Percentile"
+        },
+        {
+          "expr": "histogram_quantile(0.50, rate(voting_session_duration_seconds_bucket[5m]))",
+          "legendFormat": "50th Percentile"
+        }
+      ]
+    },
+    {
+      "title": "Voting Success Rate",
+      "type": "gauge",
+      "targets": [
+        {
+          "expr": "(sum(votes_successful) / sum(votes_total)) * 100",
+          "legendFormat": "Success Rate"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "thresholds": {
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 80
+              },
+              {
+                "color": "green",
+                "value": 95
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "title": "Voting Errors",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "rate(voting_errors_total[5m])",
+          "legendFormat": "Errors per Second"
+        }
+      ]
+    },
+    {
+      "title": "Database Connections",
+      "type": "stat",
+      "targets": [
+        {
+          "expr": "pg_stat_database_numbackends",
+          "legendFormat": "Active Connections"
+        }
+      ]
+    },
+    {
+      "title": "Database Query Performance",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "rate(pg_stat_database_blk_read_time[5m])",
+          "legendFormat": "Block Read Time"
+        },
+        {
+          "expr": "rate(pg_stat_database_blk_write_time[5m])",
+          "legendFormat": "Block Write Time"
+        }
+      ]
+    }
+  ],
+  "refresh": "30s",
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "templating": {
+    "list": [
+      {
+        "name": "candidate",
+        "type": "query",
+        "query": "label_values(votes_total, candidate)",
+        "refresh": 1,
+        "includeAll": true
+      }
+    ]
+  }
+} 
