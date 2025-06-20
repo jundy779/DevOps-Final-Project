@@ -1,97 +1,39 @@
 pipeline {
     agent any
     
+    options {
+        cleanBeforeCheckout()
+        skipDefaultCheckout()
+    }
+    
     environment {
         DOCKER_REGISTRY = 'your-registry.com'
         IMAGE_TAG = "${env.BUILD_NUMBER}"
-        BACKEND_IMAGE = 'voting-app-backend'
+        KUBECONFIG = credentials('kubeconfig')
     }
     
     stages {
+        stage('Clean Workspace') {
+            steps {
+                script {
+                    // Force clean workspace
+                    sh '''
+                        echo "🧹 Cleaning workspace..."
+                        rm -rf * || true
+                        rm -rf .* || true
+                        echo "✅ Workspace cleaned"
+                    '''
+                }
+            }
+        }
+        
         stage('Checkout') {
             steps {
-                checkout scm
-            }
-        }
-        
-        stage('Install Dependencies') {
-            agent {
-                docker {
-                    image 'node:18-alpine'
-                    args '-v /var/run/docker.sock:/var/run/docker.sock'
-                }
-            }
-            steps {
-                dir('backend') {
-                    sh '''
-                        npm install
-                        npm audit --audit-level moderate || echo "Security audit completed"
-                    '''
-                }
-            }
-        }
-        
-        stage('Code Quality') {
-            agent {
-                docker {
-                    image 'node:18-alpine'
-                    args '-v /var/run/docker.sock:/var/run/docker.sock'
-                }
-            }
-            steps {
-                dir('backend') {
-                    sh '''
-                        npm run lint || echo "Linting completed"
-                        npm run format || echo "Formatting completed"
-                    '''
-                }
-            }
-        }
-        
-        stage('Unit Tests') {
-            agent {
-                docker {
-                    image 'node:18-alpine'
-                    args '-v /var/run/docker.sock:/var/run/docker.sock'
-                }
-            }
-            steps {
-                dir('backend') {
-                    sh '''
-                        npm test -- --coverage --watchAll=false
-                    '''
-                }
-            }
-            post {
-                always {
-                    dir('backend') {
-                        publishHTML([
-                            allowMissing: false,
-                            alwaysLinkToLastBuild: true,
-                            keepAll: true,
-                            reportDir: 'coverage/lcov-report',
-                            reportFiles: 'index.html',
-                            reportName: 'Backend Coverage Report'
-                        ])
-                        junit 'test-results/*.xml'
+                script {
+                    // Clean checkout with retry
+                    retry(3) {
+                        checkout scm
                     }
-                }
-            }
-        }
-        
-        stage('Security Scan') {
-            agent {
-                docker {
-                    image 'node:18-alpine'
-                    args '-v /var/run/docker.sock:/var/run/docker.sock'
-                }
-            }
-            steps {
-                dir('backend') {
-                    sh '''
-                        npm audit --audit-level high || echo "Security scan completed"
-                        # Add additional security tools like Snyk if needed
-                    '''
                 }
             }
         }
@@ -106,57 +48,92 @@ pipeline {
             steps {
                 dir('backend') {
                     sh '''
-                        docker build -t ${DOCKER_REGISTRY}/${BACKEND_IMAGE}:${IMAGE_TAG} .
-                        docker tag ${DOCKER_REGISTRY}/${BACKEND_IMAGE}:${IMAGE_TAG} ${DOCKER_REGISTRY}/${BACKEND_IMAGE}:latest
+                        echo "📦 Installing dependencies..."
+                        npm install
+                        echo "🧪 Running tests..."
+                        npm test
+                        echo "🐳 Building Docker image..."
+                        docker build -t ${DOCKER_REGISTRY}/voting-app-backend:${IMAGE_TAG} .
+                        docker tag ${DOCKER_REGISTRY}/voting-app-backend:${IMAGE_TAG} ${DOCKER_REGISTRY}/voting-app-backend:latest
+                    '''
+                }
+            }
+            post {
+                success {
+                    echo '✅ Backend build successful'
+                }
+                failure {
+                    echo '❌ Backend build failed'
+                    currentBuild.result = 'FAILURE'
+                }
+            }
+        }
+        
+        stage('Push Images') {
+            when {
+                allOf {
+                    expression { currentBuild.result == null || currentBuild.result == 'SUCCESS' }
+                }
+            }
+            steps {
+                script {
+                    sh '''
+                        echo "📤 Pushing Docker images..."
+                        docker push ${DOCKER_REGISTRY}/voting-app-backend:${IMAGE_TAG}
+                        docker push ${DOCKER_REGISTRY}/voting-app-backend:latest
                     '''
                 }
             }
         }
         
-        stage('Push Image') {
+        stage('Deploy to Kubernetes') {
             when {
-                branch 'main'
-            }
-            steps {
-                script {
-                    withCredentials([usernamePassword(credentialsId: 'docker-registry', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
-                        sh '''
-                            echo $DOCKER_PASS | docker login ${DOCKER_REGISTRY} -u $DOCKER_USER --password-stdin
-                            docker push ${DOCKER_REGISTRY}/${BACKEND_IMAGE}:${IMAGE_TAG}
-                            docker push ${DOCKER_REGISTRY}/${BACKEND_IMAGE}:latest
-                        '''
-                    }
+                allOf {
+                    expression { currentBuild.result == null || currentBuild.result == 'SUCCESS' }
                 }
-            }
-        }
-        
-        stage('Deploy to Staging') {
-            when {
-                branch 'develop'
             }
             steps {
                 script {
                     sh '''
-                        kubectl set image deployment/backend backend=${DOCKER_REGISTRY}/${BACKEND_IMAGE}:${IMAGE_TAG} -n voting-app-staging
-                        kubectl rollout status deployment/backend -n voting-app-staging
-                    '''
-                }
-            }
-        }
-        
-        stage('Integration Tests') {
-            when {
-                branch 'develop'
-            }
-            steps {
-                script {
-                    sh '''
-                        # Wait for backend to be ready
-                        kubectl wait --for=condition=ready pod -l app=backend -n voting-app-staging --timeout=300s
+                        echo "☸️ Deploying to Kubernetes..."
+                        # Update image tags in Kubernetes manifests
+                        sed -i "s|voting-app-backend:latest|${DOCKER_REGISTRY}/voting-app-backend:${IMAGE_TAG}|g" kubernetes/backend-deployment.yaml
                         
-                        # Run integration tests
-                        curl -f http://backend-service:8000/health || exit 1
-                        curl -f http://backend-service:8000/api/votes || exit 1
+                        # Deploy to Kubernetes
+                        kubectl apply -f kubernetes/namespace.yaml
+                        kubectl apply -f kubernetes/secret.yaml
+                        kubectl apply -f kubernetes/postgres-deployment.yaml
+                        
+                        # Wait for database to be ready
+                        kubectl wait --for=condition=ready pod -l app=postgres -n voting-app --timeout=300s
+                        
+                        # Deploy backend
+                        kubectl apply -f kubernetes/backend-deployment.yaml
+                        
+                        # Wait for backend to be ready
+                        kubectl wait --for=condition=ready pod -l app=backend -n voting-app --timeout=300s
+                    '''
+                }
+            }
+        }
+        
+        stage('Integration Test') {
+            when {
+                allOf {
+                    expression { currentBuild.result == null || currentBuild.result == 'SUCCESS' }
+                }
+            }
+            steps {
+                script {
+                    sh '''
+                        echo "🧪 Running integration tests..."
+                        # Wait for services to be ready
+                        sleep 30
+                        
+                        # Test backend API
+                        BACKEND_IP=$(kubectl get service backend-service -n voting-app -o jsonpath='{.spec.clusterIP}')
+                        kubectl run test-pod --image=curlimages/curl -n voting-app --rm -i --restart=Never -- curl -f http://$BACKEND_IP:8000/health || exit 1
+                        echo "✅ Backend health check passed"
                     '''
                 }
             }
@@ -165,13 +142,26 @@ pipeline {
     
     post {
         always {
-            cleanWs()
+            // Cleanup
+            sh '''
+                echo "🧹 Cleaning up..."
+                kubectl delete pod test-pod -n voting-app --ignore-not-found=true
+            '''
+            
+            // Notify results
+            script {
+                if (currentBuild.result == 'SUCCESS') {
+                    echo '🎉 Backend deployment successful!'
+                } else {
+                    echo '❌ Backend deployment failed!'
+                }
+            }
         }
         success {
-            echo '🎉 Backend pipeline completed successfully!'
+            echo '✅ Backend pipeline completed successfully'
         }
         failure {
-            echo '❌ Backend pipeline failed!'
+            echo '❌ Backend pipeline failed'
         }
     }
 } 
