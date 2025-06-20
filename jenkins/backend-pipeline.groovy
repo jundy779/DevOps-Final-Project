@@ -6,9 +6,10 @@ pipeline {
     }
     
     environment {
-        DOCKER_REGISTRY = 'your-registry.com'
+        DOCKER_HUB_USERNAME = 'final-project'
+        IMAGE_NAME = "${DOCKER_HUB_USERNAME}/voting-app-backend"
         IMAGE_TAG = "${env.BUILD_NUMBER}"
-        KUBECONFIG = credentials('kubeconfig')
+        DOCKER_CREDENTIALS_ID = 'docker-registry'
     }
     
     stages {
@@ -47,8 +48,8 @@ pipeline {
                         echo "🧪 Skipping tests for now to fix deployment..."
                         # npm test -- --config=jest.config.cjs
                         echo "🐳 Building Docker image..."
-                        docker build -t ${DOCKER_REGISTRY}/voting-app-backend:${IMAGE_TAG} .
-                        docker tag ${DOCKER_REGISTRY}/voting-app-backend:${IMAGE_TAG} ${DOCKER_REGISTRY}/voting-app-backend:latest
+                        docker build -t ${IMAGE_NAME}:${IMAGE_TAG} .
+                        docker tag ${IMAGE_NAME}:${IMAGE_TAG} ${IMAGE_NAME}:latest
                     '''
                 }
             }
@@ -72,12 +73,16 @@ pipeline {
                 }
             }
             steps {
-                script {
-                    sh '''
-                        echo "📤 Pushing Docker images..."
-                        docker push ${DOCKER_REGISTRY}/voting-app-backend:${IMAGE_TAG}
-                        docker push ${DOCKER_REGISTRY}/voting-app-backend:latest
-                    '''
+                withCredentials([usernamePassword(credentialsId: DOCKER_CREDENTIALS_ID, usernameVariable: 'DOCKER_USERNAME', passwordVariable: 'DOCKER_PASSWORD')]) {
+                    script {
+                        sh """
+                            echo "🔐 Logging into Docker Hub..."
+                            echo "\$DOCKER_PASSWORD" | docker login -u "\$DOCKER_USERNAME" --password-stdin
+                            echo "📤 Pushing Docker images..."
+                            docker push ${IMAGE_NAME}:${IMAGE_TAG}
+                            docker push ${IMAGE_NAME}:latest
+                        """
+                    }
                 }
             }
         }
@@ -93,7 +98,7 @@ pipeline {
                     script {
                         sh """
                             echo "☸️ Deploying to Kubernetes..."
-                            sed -i "s|voting-app-backend:latest|${DOCKER_REGISTRY}/voting-app-backend:${IMAGE_TAG}|g" kubernetes/backend-deployment.yaml
+                            sed -i "s|voting-app-backend:latest|${IMAGE_NAME}:${IMAGE_TAG}|g" kubernetes/backend-deployment.yaml
                             
                             kubectl --kubeconfig \$KUBECONFIG apply -f kubernetes/namespace.yaml
                             kubectl --kubeconfig \$KUBECONFIG apply -f kubernetes/secret.yaml
@@ -138,7 +143,7 @@ pipeline {
             withCredentials([file(credentialsId: 'kubeconfig', variable: 'KUBECONFIG')]) {
                 script {
                     echo "--- Post Build Actions ---"
-                    sh "kubectl --kubeconfig $KUBECONFIG delete pod test-pod -n voting-app --ignore-not-found=true || true"
+                    sh "kubectl --kubeconfig \$KUBECONFIG delete pod test-pod -n voting-app --ignore-not-found=true || true"
                     
                     if (currentBuild.result == 'SUCCESS' || currentBuild.result == null) {
                         echo '🎉 Pipeline finished.'
