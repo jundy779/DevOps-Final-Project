@@ -127,16 +127,14 @@ pipeline {
     
     post {
         always {
-            sh '''
-                echo "🧹 Cleaning up..."
-                kubectl delete pod test-pod -n voting-app --ignore-not-found=true
-            '''
-            
             script {
-                if (currentBuild.result == 'SUCCESS') {
-                    echo '🎉 Backend deployment successful!'
+                sh 'echo "🧹 Cleaning up..."'
+                sh 'kubectl delete pod test-pod -n voting-app --ignore-not-found=true'
+                
+                if (currentBuild.result == 'SUCCESS' || currentBuild.result == null) {
+                    echo '🎉 Backend pipeline finished.'
                 } else {
-                    echo '❌ Backend deployment failed!'
+                    echo '❌ Backend pipeline failed.'
                 }
             }
         }
