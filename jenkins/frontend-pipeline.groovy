@@ -1,6 +1,10 @@
 pipeline {
     agent any
     
+    options {
+        cleanBeforeCheckout()
+    }
+    
     environment {
         DOCKER_REGISTRY = 'your-registry.com'
         IMAGE_TAG = "${env.BUILD_NUMBER}"
