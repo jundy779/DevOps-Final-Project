@@ -1,0 +1,82 @@
+<<<<<<< HEAD
+pipeline {
+    agent any
+    
+    options {
+        cleanBeforeCheckout()
+    }
+    
+    environment {
+        DOCKER_REGISTRY = 'your-registry.com'
+        IMAGE_TAG = "${env.BUILD_NUMBER}"
+        KUBECONFIG = credentials('kubeconfig')
+    }
+    
+    stages {
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+        
+        stage('Build Backend') {
+            agent {
+                docker {
+                    image 'node:18-alpine'
+                    args '-v /var/run/docker.sock:/var/run/docker.sock'
+                }
+            }
+            steps {
+                dir('backend') {
+                    sh '''
+                        npm install
+                        npm test
+                        docker build -t ${DOCKER_REGISTRY}/voting-app-backend:${IMAGE_TAG} .
+                        docker tag ${DOCKER_REGISTRY}/voting-app-backend:${IMAGE_TAG} ${DOCKER_REGISTRY}/voting-app-backend:latest
+                    '''
+                }
+            }
+            post {
+                success {
+                    echo 'Backend build successful'
+                }
+                failure {
+                    echo 'Backend build failed'
+                    currentBuild.result = 'FAILURE'
+                }
+            }
+        }
+        
+        stage('Build Frontend') {
+            agent {
+                docker {
+                    image 'node:18-alpine'
+                    args '-v /var/run/docker.sock:/var/run/docker.sock'
+                }
+            }
+            steps {
+                dir('frontend') {
+                    sh '''
+                        npm install
+                        npm test
+                        docker build -t ${DOCKER_REGISTRY}/voting-app-frontend:${IMAGE_TAG} .
+                        docker tag ${DOCKER_REGISTRY}/voting-app-frontend:${IMAGE_TAG} ${DOCKER_REGISTRY}/voting-app-frontend:latest
+                    '''
+                }
+            }
+            post {
+                success {
+                    echo 'Frontend build successful'
+                }
+                failure {
+                    echo 'Frontend build failed'
+                    currentBuild.result = 'FAILURE'
+                }
+            }
+        }
+        
+        stage('Push Images') {
+            when {
+                allOf {
+                    expression { currentBuild.result == null || currentBuild.result == 'SUCCES
+

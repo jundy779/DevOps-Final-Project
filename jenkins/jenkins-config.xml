@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 <?xml version='1.1' encoding='UTF-8'?>
 <flow-definition plugin="workflow-job@1289">
   <description>Multi-job pipeline for Voting App with separate frontend and backend builds</description>
@@ -190,4 +191,198 @@ pipeline {
   </definition>
   <triggers/>
   <disabled>false</disabled>
+=======
+<?xml version='1.1' encoding='UTF-8'?>
+<flow-definition plugin="workflow-job@1289">
+  <description>Multi-job pipeline for Voting App with separate frontend and backend builds</description>
+  <keepDependencies>false</keepDependencies>
+  <properties>
+    <hudson.plugins.disk__usage.DiskUsageProperty/>
+    <org.jenkinsci.plugins.workflow.job.properties.PipelineTriggersJobProperty>
+      <triggers>
+        <hudson.triggers.SCMTrigger>
+          <spec>H/5 * * * *</spec>
+        </hudson.triggers.SCMTrigger>
+      </triggers>
+    </org.jenkinsci.plugins.workflow.job.properties.PipelineTriggersJobProperty>
+  </properties>
+  <definition class="org.jenkinsci.plugins.workflow.cps.CpsFlowDefinition" plugin="workflow-cps@3697">
+    <script>
+pipeline {
+    agent any
+    
+    environment {
+        DOCKER_REGISTRY = 'your-registry.com'
+        IMAGE_TAG = "${env.BUILD_NUMBER}"
+        KUBECONFIG = credentials('kubeconfig')
+    }
+    
+    stages {
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+        
+        stage('Parallel Build') {
+            parallel {
+                stage('Build Backend') {
+                    agent {
+                        docker {
+                            image 'node:18-alpine'
+                            args '-v /var/run/docker.sock:/var/run/docker.sock'
+                        }
+                    }
+                    steps {
+                        dir('backend') {
+                            sh '''
+                                npm install
+                                npm test
+                                docker build -t ${DOCKER_REGISTRY}/voting-app-backend:${IMAGE_TAG} .
+                                docker tag ${DOCKER_REGISTRY}/voting-app-backend:${IMAGE_TAG} ${DOCKER_REGISTRY}/voting-app-backend:latest
+                            '''
+                        }
+                    }
+                    post {
+                        success {
+                            echo 'Backend build successful'
+                        }
+                        failure {
+                            echo 'Backend build failed'
+                            currentBuild.result = 'FAILURE'
+                        }
+                    }
+                }
+                
+                stage('Build Frontend') {
+                    agent {
+                        docker {
+                            image 'node:18-alpine'
+                            args '-v /var/run/docker.sock:/var/run/docker.sock'
+                        }
+                    }
+                    steps {
+                        dir('frontend') {
+                            sh '''
+                                npm install
+                                npm test
+                                docker build -t ${DOCKER_REGISTRY}/voting-app-frontend:${IMAGE_TAG} .
+                                docker tag ${DOCKER_REGISTRY}/voting-app-frontend:${IMAGE_TAG} ${DOCKER_REGISTRY}/voting-app-frontend:latest
+                            '''
+                        }
+                    }
+                    post {
+                        success {
+                            echo 'Frontend build successful'
+                        }
+                        failure {
+                            echo 'Frontend build failed'
+                            currentBuild.result = 'FAILURE'
+                        }
+                    }
+                }
+            }
+        }
+        
+        stage('Push Images') {
+            when {
+                allOf {
+                    expression { currentBuild.result == null || currentBuild.result == 'SUCCESS' }
+                }
+            }
+            steps {
+                script {
+                    sh '''
+                        docker push ${DOCKER_REGISTRY}/voting-app-backend:${IMAGE_TAG}
+                        docker push ${DOCKER_REGISTRY}/voting-app-backend:latest
+                        docker push ${DOCKER_REGISTRY}/voting-app-frontend:${IMAGE_TAG}
+                        docker push ${DOCKER_REGISTRY}/voting-app-frontend:latest
+                    '''
+                }
+            }
+        }
+        
+        stage('Deploy to Kubernetes') {
+            when {
+                allOf {
+                    expression { currentBuild.result == null || currentBuild.result == 'SUCCESS' }
+                }
+            }
+            steps {
+                script {
+                    sh '''
+                        sed -i "s|voting-app-backend:latest|${DOCKER_REGISTRY}/voting-app-backend:${IMAGE_TAG}|g" kubernetes/backend-deployment.yaml
+                        sed -i "s|voting-app-frontend:latest|${DOCKER_REGISTRY}/voting-app-frontend:${IMAGE_TAG}|g" kubernetes/frontend-deployment.yaml
+                        
+                        kubectl apply -f kubernetes/namespace.yaml
+                        kubectl apply -f kubernetes/secret.yaml
+                        kubectl apply -f kubernetes/postgres-deployment.yaml
+                        
+                        kubectl wait --for=condition=ready pod -l app=postgres -n voting-app --timeout=300s
+                        
+                        kubectl apply -f kubernetes/backend-deployment.yaml
+                        kubectl apply -f kubernetes/frontend-deployment.yaml
+                        
+                        kubectl wait --for=condition=ready pod -l app=backend -n voting-app --timeout=300s
+                        kubectl wait --for=condition=ready pod -l app=frontend -n voting-app --timeout=300s
+                    '''
+                }
+            }
+        }
+        
+        stage('Integration Test') {
+            when {
+                allOf {
+                    expression { currentBuild.result == null || currentBuild.result == 'SUCCESS' }
+                }
+            }
+            steps {
+                script {
+                    sh 'sleep 30'
+                    
+                    sh '''
+                        FRONTEND_IP=$(kubectl get service frontend-service -n voting-app -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+                        if [ -z "$FRONTEND_IP" ]; then
+                            echo "Frontend service not ready yet"
+                            exit 1
+                        fi
+                        
+                        curl -f http://$FRONTEND_IP || exit 1
+                        
+                        BACKEND_IP=$(kubectl get service backend-service -n voting-app -o jsonpath='{.spec.clusterIP}')
+                        kubectl run test-pod --image=curlimages/curl -n voting-app --rm -i --restart=Never -- curl -f http://$BACKEND_IP:8000/health || exit 1
+                    '''
+                }
+            }
+        }
+    }
+    
+    post {
+        always {
+            sh '''
+                kubectl delete pod test-pod -n voting-app --ignore-not-found=true
+            '''
+            
+            script {
+                if (currentBuild.result == 'SUCCESS') {
+                    echo '🎉 Deployment successful!'
+                } else {
+                    echo '❌ Deployment failed!'
+                }
+            }
+        }
+        success {
+            echo '✅ Pipeline completed successfully'
+        }
+        failure {
+            echo '❌ Pipeline failed'
+        }
+    }
+}
+    </script>
+    <sandbox>true</sandbox>
+  </definition>
+  <triggers/>
+  <disabled>false</disabled>
+>>>>>>> 5eec687 (Add Jenkinsfile for CI/CD)
 </flow-definition> 

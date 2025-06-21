@@ -11,7 +11,6 @@ const port = process.env.PORT || 8000;
 const collectDefaultMetrics = promClient.collectDefaultMetrics;
 collectDefaultMetrics();
 
-// Custom metrics
 const httpRequestDurationMicroseconds = new promClient.Histogram({
   name: 'http_request_duration_seconds',
   help: 'Duration of HTTP requests in seconds',
@@ -28,7 +27,6 @@ const httpRequestsTotal = new promClient.Counter({
 app.use(cors());
 app.use(express.json());
 
-// Metrics middleware
 app.use((req, res, next) => {
   const start = Date.now();
   res.on('finish', () => {
@@ -107,4 +105,4 @@ app.post('/api/votes', async (req, res) => {
 // Start server
 app.listen(port, () => {
   console.log(`Server berjalan di port ${port}`);
-}); 
+});
